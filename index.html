@@ -1,0 +1,1717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>YT Content Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0A0A0B;--bg2:#111114;--bg3:#18181D;--bg4:#1F1F26;
+  --border:rgba(255,255,255,0.06);--border2:rgba(255,255,255,0.12);
+  --gold:#F5C842;--goldm:rgba(245,200,66,0.12);--goldb:rgba(245,200,66,0.3);
+  --red:#E84040;--redm:rgba(232,64,64,0.12);
+  --cyan:#34D1BF;--cyanm:rgba(52,209,191,0.1);
+  --green:#3DD68C;--greenm:rgba(61,214,140,0.1);
+  --muted:rgba(255,255,255,0.38);--snow:#F2F0E8;
+  --r:10px;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Instrument Sans',sans-serif;background:var(--bg);color:var(--snow);min-height:100vh;overflow-x:hidden;}
+
+/* ── GRAIN OVERLAY ── */
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:9999;opacity:.4;}
+
+/* ── HEADER ── */
+.hdr{padding:20px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:20px;position:sticky;top:0;background:rgba(10,10,11,0.92);backdrop-filter:blur(20px);z-index:100;}
+.hdr-logo{font-family:'Bebas Neue',sans-serif;font-size:1.6rem;letter-spacing:.08em;color:var(--gold);line-height:1;}
+.hdr-sub{font-size:.72rem;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;}
+.hdr-keys{margin-left:auto;display:flex;gap:8px;}
+.key-pill{padding:5px 12px;border-radius:100px;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border:1px solid;transition:all .15s;}
+.key-pill.ok{background:var(--greenm);border-color:rgba(61,214,140,0.25);color:var(--green);}
+.key-pill.missing{background:var(--redm);border-color:rgba(232,64,64,0.25);color:var(--red);}
+
+/* ── PIPELINE NAV ── */
+.pipeline{display:flex;gap:0;border-bottom:1px solid var(--border);overflow-x:auto;scrollbar-width:none;}
+.pipeline::-webkit-scrollbar{display:none;}
+.pipe-tab{padding:14px 24px;font-size:.78rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;transition:all .2s;white-space:nowrap;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.pipe-tab:hover{color:var(--snow);background:rgba(255,255,255,0.03);}
+.pipe-tab.active{color:var(--gold);border-bottom-color:var(--gold);}
+.pipe-tab.done{color:var(--green);}
+.pipe-tab.locked{opacity:.35;cursor:not-allowed;}
+.pipe-num{width:20px;height:20px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2);font-size:.65rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.pipe-tab.active .pipe-num{background:var(--gold);border-color:var(--gold);color:#000;}
+.pipe-tab.done .pipe-num{background:var(--green);border-color:var(--green);color:#000;}
+
+/* ── MAIN ── */
+.main{max-width:1100px;margin:0 auto;padding:32px 32px 80px;}
+.stage{display:none;}
+.stage.active{display:block;}
+
+/* ── SECTION TITLES ── */
+.stage-title{font-family:'Bebas Neue',sans-serif;font-size:2.4rem;letter-spacing:.06em;color:var(--snow);margin-bottom:4px;}
+.stage-title span{color:var(--gold);}
+.stage-desc{font-size:.84rem;color:var(--muted);margin-bottom:28px;line-height:1.6;}
+
+/* ── CARDS ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px;}
+.card-hdr{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:rgba(0,0,0,0.2);}
+.card-icon{font-size:1rem;}
+.card-title{font-size:.78rem;font-weight:700;letter-spacing:.05em;}
+.card-sub{font-size:.68rem;color:var(--muted);margin-left:auto;}
+.card-body{padding:16px;}
+
+/* ── FORM ── */
+.flabel{font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,0.3);font-weight:700;display:block;margin-bottom:6px;}
+.finput,.ftextarea,.fselect{width:100%;background:rgba(0,0,0,0.3);border:1px solid var(--border2);border-radius:8px;padding:10px 13px;color:var(--snow);font-family:'Instrument Sans',sans-serif;font-size:.84rem;outline:none;transition:border-color .15s;}
+.finput:focus,.ftextarea:focus,.fselect:focus{border-color:rgba(245,200,66,0.4);}
+.ftextarea{resize:vertical;min-height:90px;line-height:1.6;}
+.fselect{cursor:pointer;}
+.fselect option{background:var(--bg2);}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.frow3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px;}
+.fg{display:flex;flex-direction:column;gap:6px;}
+
+/* ── BUTTONS ── */
+.btn{padding:11px 22px;border-radius:8px;border:none;font-family:'Instrument Sans',sans-serif;font-size:.84rem;font-weight:700;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:8px;letter-spacing:.02em;}
+.btn-gold{background:var(--gold);color:#000;}
+.btn-gold:hover{background:#F7D355;transform:translateY(-1px);}
+.btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--muted);}
+.btn-ghost:hover{border-color:var(--snow);color:var(--snow);}
+.btn-green{background:var(--green);color:#000;}
+.btn-green:hover{opacity:.85;}
+.btn-red{background:var(--red);color:#fff;}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.btn-sm{padding:7px 14px;font-size:.74rem;}
+.btn-full{width:100%;justify-content:center;}
+
+/* ── API KEYS MODAL ── */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(8px);z-index:500;display:none;align-items:center;justify-content:center;padding:20px;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:14px;width:100%;max-width:540px;overflow:hidden;max-height:90vh;display:flex;flex-direction:column;}
+.modal-body{padding:22px;overflow-y:auto;flex:1;}
+.modal-hdr{padding:18px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+.modal-hdr h2{font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:.06em;color:var(--gold);}
+.modal-close{background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;}
+.modal-body{padding:22px;}
+.key-entry{margin-bottom:16px;}
+.key-entry-hdr{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.key-dot{width:8px;height:8px;border-radius:50%;}
+.key-name{font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;}
+.key-inp-row{display:flex;gap:8px;}
+.key-inp-row .finput{font-family:'JetBrains Mono',monospace;font-size:.76rem;}
+.key-save-btn{padding:8px 14px;border-radius:7px;border:none;font-size:.74rem;font-weight:700;cursor:pointer;flex-shrink:0;}
+
+/* ── PROGRESS / LOADING ── */
+.prog-wrap{padding:28px;text-align:center;}
+.prog-ring{width:44px;height:44px;border:3px solid rgba(245,200,66,0.15);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.prog-msg{font-size:.84rem;color:var(--muted);}
+.prog-msg strong{color:var(--gold);}
+.prog-bar-wrap{background:rgba(0,0,0,0.3);border-radius:100px;height:4px;margin-top:14px;overflow:hidden;}
+.prog-bar{height:100%;background:linear-gradient(90deg,var(--gold),#F7A940);border-radius:100px;transition:width .4s ease;width:0%;}
+
+/* ── SCRIPT OUTPUT ── */
+.script-panel{background:rgba(0,0,0,0.25);border:1px solid var(--border);border-radius:8px;padding:20px;font-size:.84rem;line-height:1.9;color:rgba(242,240,232,0.85);max-height:480px;overflow-y:auto;white-space:pre-wrap;font-family:'JetBrains Mono',monospace;}
+.script-panel::-webkit-scrollbar{width:4px;}
+.script-panel::-webkit-scrollbar-track{background:transparent;}
+.script-panel::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+/* ── STAT PILLS ── */
+.stats-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
+.stat-pill{padding:6px 14px;border-radius:100px;font-size:.72rem;font-weight:700;}
+.stat-gold{background:var(--goldm);border:1px solid var(--goldb);color:var(--gold);}
+.stat-green{background:var(--greenm);border:1px solid rgba(61,214,140,0.25);color:var(--green);}
+.stat-cyan{background:var(--cyanm);border:1px solid rgba(52,209,191,0.25);color:var(--cyan);}
+
+/* ── SCENE CARDS ── */
+.scenes-grid{display:flex;flex-direction:column;gap:10px;}
+.scene-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;transition:border-color .2s;}
+.scene-card:hover{border-color:var(--border2);}
+.scene-card-hdr{padding:10px 14px;display:flex;align-items:center;gap:10px;cursor:pointer;}
+.scene-num{font-family:'Bebas Neue',sans-serif;font-size:1rem;color:var(--gold);letter-spacing:.06em;flex-shrink:0;min-width:28px;}
+.scene-narration{font-size:.78rem;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.scene-shot{font-size:.65rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;background:var(--bg4);border-radius:4px;color:var(--muted);flex-shrink:0;}
+.scene-body{padding:14px;border-top:1px solid var(--border);display:none;}
+.scene-body.open{display:block;}
+.scene-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;}
+.scene-meta-item{background:rgba(0,0,0,0.2);border-radius:6px;padding:8px 10px;}
+.smi-label{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:3px;}
+.smi-value{font-size:.76rem;color:var(--snow);}
+.scene-prompt-box{background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:6px;padding:10px;font-family:'JetBrains Mono',monospace;font-size:.68rem;line-height:1.65;color:rgba(242,240,232,0.6);}
+.scene-actions{display:flex;gap:8px;margin-top:10px;align-items:center;}
+.scene-img-wrap{margin-top:10px;border-radius:8px;overflow:hidden;border:1px solid var(--border);}
+.scene-img-wrap img,.scene-img-wrap video{width:100%;display:block;}
+.scene-status{font-size:.68rem;font-family:'JetBrains Mono',monospace;color:var(--muted);margin-left:auto;}
+.scene-status.gen{color:var(--gold);}
+.scene-status.done{color:var(--green);}
+.scene-status.fail{color:var(--red);}
+
+/* ── VOICE SECTION ── */
+.voice-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+.voice-btn{padding:10px 12px;background:var(--bg3);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;text-align:left;transition:all .15s;}
+.voice-btn:hover{border-color:var(--border2);}
+.voice-btn.on{border-color:var(--gold);background:var(--goldm);}
+.voice-name{font-size:.78rem;font-weight:700;color:var(--snow);}
+.voice-desc{font-size:.66rem;color:var(--muted);margin-top:2px;}
+
+/* ── THUMBNAIL ── */
+.thumb-layout{display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start;}
+.vis-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+.vis-card{padding:8px 6px;background:rgba(0,0,0,0.25);border:1.5px solid var(--border);border-radius:8px;cursor:pointer;text-align:center;transition:all .18s;}
+.vis-card:hover{border-color:var(--goldb);}
+.vis-card.on{border-color:var(--gold);background:var(--goldm);}
+.vis-em{font-size:1rem;display:block;margin-bottom:2px;}
+.vis-name{font-size:.58rem;font-weight:700;color:var(--snow);line-height:1.2;}
+.upload-zone{border:2px dashed rgba(245,200,66,0.25);border-radius:8px;padding:18px;text-align:center;cursor:pointer;transition:all .2s;position:relative;background:rgba(245,200,66,0.02);}
+.upload-zone:hover{border-color:rgba(245,200,66,0.5);background:rgba(245,200,66,0.05);}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;}
+.img-previews{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+.img-prev-item{position:relative;width:72px;}
+.img-prev-item img{width:72px;height:72px;object-fit:cover;border-radius:6px;border:2px solid rgba(245,200,66,0.3);}
+.img-prev-label{font-size:8px;font-family:'JetBrains Mono',monospace;color:var(--gold);text-align:center;margin-top:2px;}
+.img-prev-remove{position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;background:var(--red);border:2px solid var(--bg2);color:#fff;font-size:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.img-prev-status{position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:7px;font-weight:700;padding:1px 5px;border-radius:100px;}
+.img-prev-status.uploading{background:rgba(245,200,66,0.2);border:1px solid rgba(245,200,66,0.4);color:var(--gold);}
+.img-prev-status.done{background:rgba(61,214,140,0.2);border:1px solid rgba(61,214,140,0.4);color:var(--green);}
+
+/* ── RESULT CARD ── */
+.result-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;min-height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+.result-ph{text-align:center;padding:40px 24px;color:rgba(242,240,232,0.15);}
+.result-ph-icon{font-size:3rem;margin-bottom:10px;display:block;}
+.result-ph h3{font-family:'Bebas Neue',sans-serif;font-size:1.2rem;letter-spacing:.06em;margin-bottom:6px;color:rgba(242,240,232,0.25);}
+.result-img-wrap{width:100%;}
+.result-img-wrap img{width:100%;display:block;}
+.result-actions{padding:12px 14px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;background:rgba(0,0,0,0.15);}
+
+/* ── DOWNLOAD ALL ── */
+.dl-all-bar{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;display:flex;align-items:center;gap:14px;margin-bottom:16px;}
+.dl-all-bar span{font-size:.8rem;color:var(--muted);flex:1;}
+
+/* ── ANALYSIS CARD ── */
+.analysis-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px;}
+.analysis-item{background:rgba(0,0,0,0.2);border-radius:6px;padding:10px 11px;}
+.ai-label{font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;}
+.ai-value{font-size:.78rem;font-weight:600;}
+.ai-value.gold{color:var(--gold);}
+.ai-value.green{color:var(--green);}
+.ai-value.cyan{color:var(--cyan);}
+.ai-value.mono{font-family:'JetBrains Mono',monospace;font-size:.7rem;}
+
+/* ── PROMPT PREVIEW ── */
+.prompt-preview{padding:10px 13px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:6px;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:rgba(242,240,232,0.5);line-height:1.65;max-height:80px;overflow:hidden;transition:max-height .3s;}
+.prompt-preview.expanded{max-height:400px;}
+
+/* ── AUDIO PLAYER ── */
+.audio-wrap{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:16px;}
+audio{width:100%;height:36px;border-radius:6px;outline:none;}
+audio::-webkit-media-controls-panel{background:var(--bg4);}
+
+/* ── GENERATE MODE TOGGLE ── */
+.mode-toggle{display:flex;gap:0;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:3px;margin-bottom:16px;width:fit-content;}
+.mode-btn{padding:7px 18px;border-radius:6px;border:none;font-family:'Instrument Sans',sans-serif;font-size:.76rem;font-weight:700;cursor:pointer;transition:all .15s;background:transparent;color:var(--muted);}
+.mode-btn.on{background:var(--gold);color:#000;}
+
+/* ── RESPONSIVE ── */
+@media(max-width:800px){
+  .thumb-layout{grid-template-columns:1fr;}
+  .frow,.frow3{grid-template-columns:1fr;}
+  .scene-meta{grid-template-columns:1fr 1fr;}
+  .voice-grid{grid-template-columns:1fr 1fr;}
+  .main{padding:20px;}
+  .hdr{padding:14px 20px;}
+}
+
+
+.user-avatar{width:30px;height:30px;border-radius:50%;border:2px solid var(--border2);object-fit:cover;flex-shrink:0;background:var(--bg3);}
+.user-info{display:flex;flex-direction:column;gap:1px;}
+.user-name{font-size:.74rem;font-weight:700;color:var(--snow);}
+.user-email{font-size:.62rem;color:var(--muted);}
+.signout-btn{padding:5px 11px;border-radius:100px;background:transparent;border:1px solid var(--border2);color:var(--muted);font-family:'Instrument Sans',sans-serif;font-size:.66rem;font-weight:700;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.signout-btn:hover{border-color:var(--red);color:var(--red);}
+@media(max-width:480px){.user-info{display:none;}.auth-body{padding:24px 20px 28px;}.auth-hero{padding:32px 24px 24px;}}
+
+
+/* ── API KEY MODAL SIGNUP HELPERS ── */
+.key-signup-bar{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+.key-signup-label{font-size:.68rem;color:var(--muted);}
+.key-signup-link{font-size:.68rem;font-weight:700;color:var(--gold);text-decoration:none;border-bottom:1px solid rgba(245,200,66,0.3);transition:border-color .15s;}
+.key-signup-link:hover{border-color:var(--gold);}
+.key-how{display:flex;flex-direction:column;gap:4px;margin-bottom:9px;background:rgba(0,0,0,0.2);border-radius:7px;padding:9px 11px;font-size:.71rem;color:rgba(242,240,232,0.55);line-height:1.5;}
+.key-how-num{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,0.08);font-size:.6rem;font-weight:700;color:var(--muted);margin-right:6px;flex-shrink:0;vertical-align:middle;}
+.key-how strong{color:rgba(242,240,232,0.8);}
+.key-how code{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--gold);background:rgba(245,200,66,0.08);padding:1px 5px;border-radius:3px;}
+.key-security-note{margin-top:14px;padding:10px 13px;background:rgba(61,214,140,0.05);border:1px solid rgba(61,214,140,0.12);border-radius:8px;font-size:.7rem;color:rgba(61,214,140,0.7);line-height:1.5;}
+</style>
+</head>
+<body>
+
+
+<!-- HEADER -->
+<header class="hdr">
+  <div>
+    <div class="hdr-logo">YT Content Engine</div>
+    <div class="hdr-sub">Script · Voice · Scenes · Thumbnail</div>
+  </div>
+  <div class="hdr-keys">
+    <div class="key-pill" id="antPill" onclick="openKeys()">Anthropic</div>
+    <div class="key-pill" id="kiePill" onclick="openKeys()">KIE</div>
+    <div class="key-pill" id="ai33Pill" onclick="openKeys()">AI33</div>
+  </div>
+</header>
+
+<!-- PIPELINE NAV -->
+<nav class="pipeline" id="pipeline">
+  <div class="pipe-tab active" data-stage="script" onclick="goStage('script')">
+    <span class="pipe-num">1</span>Script
+  </div>
+  <div class="pipe-tab locked" data-stage="voice" onclick="goStage('voice')">
+    <span class="pipe-num">2</span>Voiceover
+  </div>
+  <div class="pipe-tab locked" data-stage="scenes" onclick="goStage('scenes')">
+    <span class="pipe-num">3</span>Scene Breakdown
+  </div>
+  <div class="pipe-tab locked" data-stage="media" onclick="goStage('media')">
+    <span class="pipe-num">4</span>Generate Media
+  </div>
+  <div class="pipe-tab locked" data-stage="thumbnail" onclick="goStage('thumbnail')">
+    <span class="pipe-num">5</span>Thumbnail
+  </div>
+</nav>
+
+<main class="main">
+
+<!-- ══ STAGE 1: SCRIPT ══════════════════════════════════════════ -->
+<div class="stage active" id="stage-script">
+  <div class="stage-title">Write the <span>Script</span></div>
+  <div class="stage-desc">Enter your video details. Claude writes a full cinematic script in batches — hook, acts, and outro — calibrated to your target duration.</div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-icon">🎬</span><span class="card-title">Video Details</span></div>
+    <div class="card-body">
+      <div class="frow">
+        <div class="fg">
+          <label class="flabel">Video Title *</label>
+          <input class="finput" id="vidTitle" placeholder="e.g. The Truth About Passive Income">
+        </div>
+        <div class="fg">
+          <label class="flabel">Target Duration</label>
+          <select class="fselect" id="vidDuration">
+            <option value="3">3 minutes (~450 words)</option>
+            <option value="5" selected>5 minutes (~750 words)</option>
+            <option value="8">8 minutes (~1200 words)</option>
+            <option value="10">10 minutes (~1500 words)</option>
+            <option value="15">15 minutes (~2250 words)</option>
+            <option value="20">20 minutes (~3000 words)</option>
+            <option value="30">30 minutes (~4500 words)</option>
+          </select>
+        </div>
+      </div>
+      <div class="frow">
+        <div class="fg">
+          <label class="flabel">Content Niche</label>
+          <select class="fselect" id="vidNiche">
+            <option value="finance">💰 Finance / Money</option>
+            <option value="motivation">🔥 Motivation / Self-Improvement</option>
+            <option value="business">🏢 Business / Entrepreneurship</option>
+            <option value="education">📚 Education / Tutorial</option>
+            <option value="health">💪 Health / Fitness</option>
+            <option value="technology">💻 Technology / AI</option>
+            <option value="crime">🔍 Crime / True Story</option>
+            <option value="history">🏛️ History / Documentary</option>
+            <option value="drama">🎭 Drama / Storytelling</option>
+            <option value="relationships">❤️ Relationships</option>
+            <option value="travel">✈️ Travel / Adventure</option>
+            <option value="food">🍳 Food / Cooking</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="flabel">Tone / Style</label>
+          <select class="fselect" id="vidTone">
+            <option value="cinematic_documentary">🎥 Cinematic Documentary</option>
+            <option value="conversational">💬 Conversational / Personal</option>
+            <option value="dramatic_thriller">⚡ Dramatic Thriller</option>
+            <option value="educational_engaging">📖 Educational & Engaging</option>
+            <option value="motivational">🚀 High-Energy Motivational</option>
+            <option value="investigative">🔎 Investigative Journalism</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg" style="margin-bottom:0">
+        <label class="flabel">Synopsis / Key Points (optional)</label>
+        <textarea class="ftextarea" id="vidSynopsis" placeholder="Brief description of what this video covers, key points to hit, any specific angles or stories to include. The more context, the better the script."></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div id="scriptGenArea">
+    <button class="btn btn-gold btn-full" id="scriptBtn" onclick="generateScript()">
+      <span>✦</span> Generate Script
+    </button>
+  </div>
+
+  <div id="scriptOutput" style="display:none;margin-top:20px;">
+    <div class="stats-row" id="scriptStats"></div>
+    <div class="card">
+      <div class="card-hdr">
+        <span class="card-icon">📄</span>
+        <span class="card-title">Generated Script</span>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="copyScript()">Copy</button>
+          <button class="btn btn-ghost btn-sm" onclick="downloadScript()">Download .txt</button>
+        </div>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <div class="script-panel" id="scriptPanel"></div>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-ghost" onclick="generateScript()">↺ Regenerate</button>
+      <button class="btn btn-gold" style="margin-left:auto;" onclick="proceedToVoice()">
+        Continue to Voiceover →
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ STAGE 2: VOICEOVER ════════════════════════════════════════ -->
+<div class="stage" id="stage-voice">
+  <div class="stage-title">Generate <span>Voiceover</span></div>
+  <div class="stage-desc">Claude-written script is sent to AI33's text-to-speech API. Pick a voice and generate your narration audio.</div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-icon">🎙️</span><span class="card-title">Voice Selection</span></div>
+    <div class="card-body">
+      <label class="flabel" style="margin-bottom:10px;">Choose a voice</label>
+      <div class="voice-grid" id="voiceGrid"></div>
+      <div class="fg">
+        <label class="flabel">Custom Voice ID (AI33/ElevenLabs)</label>
+        <input class="finput" id="customVoiceId" placeholder="Leave blank to use selected voice above">
+      </div>
+    </div>
+  </div>
+
+  <div id="voiceGenArea">
+    <button class="btn btn-gold btn-full" id="voiceBtn" onclick="generateVoiceover()">
+      <span>🎙️</span> Generate Voiceover
+    </button>
+  </div>
+
+  <div id="voiceOutput" style="display:none;margin-top:20px;">
+    <div class="audio-wrap">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+        <span style="font-size:.78rem;font-weight:700;color:var(--green);">✓ Voiceover Ready</span>
+        <button class="btn btn-ghost btn-sm" id="voiceDlBtn" onclick="downloadVoiceover()">⬇ Download MP3</button>
+      </div>
+      <audio id="audioPlayer" controls></audio>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-ghost" onclick="generateVoiceover()">↺ Regenerate</button>
+      <button class="btn btn-gold" style="margin-left:auto;" onclick="proceedToScenes()">Continue to Scenes →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ STAGE 3: SCENE BREAKDOWN ═════════════════════════════════ -->
+<div class="stage" id="stage-scenes">
+  <div class="stage-title">Scene <span>Breakdown</span></div>
+  <div class="stage-desc">Claude breaks your script into cinematic scenes — Hollywood director style. Each scene gets shot type, camera angle, lighting, mood, and a production-ready image prompt.</div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-icon">🎨</span><span class="card-title">Visual Style</span></div>
+    <div class="card-body">
+      <div class="vis-grid" id="sceneVisGrid"></div>
+    </div>
+  </div>
+
+  <div id="sceneGenArea">
+    <button class="btn btn-gold btn-full" id="sceneBtn" onclick="generateScenes()">
+      <span>🎬</span> Generate Scene Breakdown
+    </button>
+  </div>
+
+  <div id="scenesOutput" style="display:none;margin-top:20px;">
+    <div class="stats-row" id="sceneStats"></div>
+    <div class="scenes-grid" id="scenesGrid"></div>
+    <div style="display:flex;gap:10px;margin-top:14px;">
+      <button class="btn btn-ghost" onclick="generateScenes()">↺ Regenerate</button>
+      <button class="btn btn-gold" style="margin-left:auto;" onclick="proceedToMedia()">Continue to Generate Media →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ STAGE 4: GENERATE MEDIA ══════════════════════════════════ -->
+<div class="stage" id="stage-media">
+  <div class="stage-title">Generate <span>Media</span></div>
+  <div class="stage-desc">Generate an image or short video for each scene. Images use Z-Image (KIE). Videos use Grok Text-to-Video 480p (KIE). Download all and edit in your preferred editor.</div>
+
+  <div class="dl-all-bar" id="dlAllBar" style="display:none;">
+    <span id="mediaProgress">0 / 0 scenes generated</span>
+    <button class="btn btn-green btn-sm" onclick="downloadAllMedia()">⬇ Download All</button>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;">
+    <div class="mode-toggle">
+      <button class="mode-btn on" id="modeImg" onclick="setMediaMode('image')">🖼 Images</button>
+      <button class="mode-btn" id="modeVid" onclick="setMediaMode('video')">🎥 Videos</button>
+    </div>
+    <span style="font-size:.76rem;color:var(--muted);" id="modeDesc">Z-Image via KIE · 16:9</span>
+  </div>
+
+  <div id="mediaGenArea">
+    <button class="btn btn-gold btn-full" id="mediaBtn" onclick="generateAllMedia()">
+      <span>⚡</span> Generate All Scene Media
+    </button>
+  </div>
+
+  <div id="mediaGrid" style="margin-top:20px;"></div>
+</div>
+
+<!-- ══ STAGE 5: THUMBNAIL ════════════════════════════════════════ -->
+<div class="stage" id="stage-thumbnail">
+  <div class="stage-title">Generate <span>Thumbnail</span></div>
+  <div class="stage-desc">Script summary auto-loaded. Upload character images and generate a viral YouTube thumbnail using Grok image-to-image.</div>
+
+  <div class="thumb-layout">
+    <!-- LEFT: INPUTS -->
+    <div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-icon">👤</span><span class="card-title">Character Images</span><span class="card-sub">1–3 images</span></div>
+        <div class="card-body">
+          <div class="upload-zone" id="thumbUploadZone">
+            <input type="file" id="thumbImgInput" accept="image/*" multiple onchange="handleThumbUpload(this)">
+            <div style="font-size:1.5rem;margin-bottom:6px;">🖼️</div>
+            <div style="font-size:.78rem;font-weight:600;margin-bottom:3px;">Drop character images</div>
+            <div style="font-size:.68rem;color:var(--muted);">PNG, JPG, WEBP · Grok uses real faces</div>
+          </div>
+          <div class="img-previews" id="thumbPreviews"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-icon">🎨</span><span class="card-title">Visual Style</span></div>
+        <div class="card-body">
+          <div class="vis-grid" id="thumbVisGrid"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-hdr"><span class="card-icon">📝</span><span class="card-title">Story / Script</span></div>
+        <div class="card-body">
+          <textarea class="ftextarea" id="thumbTranscript" style="min-height:100px;" placeholder="Auto-loaded from generated script. Edit if needed."></textarea>
+          <div style="margin-top:8px;font-size:.7rem;color:var(--muted);">💡 Auto-populated from Stage 1 script</div>
+        </div>
+      </div>
+
+      <button class="btn btn-gold btn-full" id="thumbBtn" onclick="runThumbnail()">
+        <span>✦</span> Generate Thumbnail
+      </button>
+    </div>
+
+    <!-- RIGHT: OUTPUT -->
+    <div>
+      <!-- Step indicators -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;" id="thumbSteps">
+        <div class="stat-pill" id="ts1">① Upload</div>
+        <div class="stat-pill" id="ts2">② Analyse</div>
+        <div class="stat-pill" id="ts3">③ Prompt</div>
+        <div class="stat-pill" id="ts4">④ Generate</div>
+        <div class="stat-pill" id="ts5">⑤ Ready</div>
+      </div>
+
+      <!-- Analysis -->
+      <div id="thumbAnalysis" style="display:none;margin-bottom:14px;">
+        <div class="card">
+          <div class="card-hdr"><span class="card-icon">🧠</span><span class="card-title">Claude's Story Intelligence</span></div>
+          <div style="padding:12px 14px;">
+            <div class="analysis-grid" id="thumbAnalysisGrid"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Prompt preview -->
+      <div id="thumbPromptCard" style="display:none;margin-bottom:14px;">
+        <div class="card">
+          <div class="card-hdr">
+            <span class="card-icon">📝</span>
+            <span class="card-title">Grok Prompt</span>
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto;" onclick="toggleThumbPrompt()">Expand</button>
+          </div>
+          <div class="card-body" style="padding:10px;">
+            <div class="prompt-preview" id="thumbPromptBody"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div class="result-card" id="thumbResult">
+        <div class="result-ph">
+          <span class="result-ph-icon">🎬</span>
+          <h3>Thumbnail Appears Here</h3>
+          <p style="font-size:.76rem;">Upload characters + generate</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</main>
+
+<!-- API KEYS MODAL -->
+<div class="modal-bg" id="keysModal">
+  <div class="modal">
+    <div class="modal-hdr">
+      <h2>API Keys</h2>
+      <button class="modal-close" onclick="closeKeys()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- ── ANTHROPIC ── -->
+      <div class="key-entry">
+        <div class="key-entry-hdr">
+          <div class="key-dot" style="background:#A78BFA;"></div>
+          <span class="key-name" style="color:#A78BFA;">Anthropic (Claude)</span>
+          <span id="antStatus" style="margin-left:auto;font-size:.68rem;color:var(--green);"></span>
+        </div>
+        <div class="key-signup-bar">
+          <span class="key-signup-label">No account?</span>
+          <a href="https://console.anthropic.com/login" target="_blank" class="key-signup-link">Sign up at console.anthropic.com →</a>
+        </div>
+        <div class="key-how">
+          <span class="key-how-num">1</span>Go to <strong>console.anthropic.com</strong> → sign up free
+          <span class="key-how-num">2</span>Click <strong>API Keys</strong> in the left sidebar
+          <span class="key-how-num">3</span>Click <strong>Create Key</strong> → copy the <code>sk-ant-api03-…</code> key
+        </div>
+        <div class="key-inp-row">
+          <input class="finput" id="antKeyInp" type="password" placeholder="sk-ant-api03-...">
+          <button class="key-save-btn" style="background:#A78BFA;color:#000;" onclick="saveKey('ant')">Save</button>
+        </div>
+      </div>
+
+      <!-- ── KIE ── -->
+      <div class="key-entry">
+        <div class="key-entry-hdr">
+          <div class="key-dot" style="background:var(--cyan);"></div>
+          <span class="key-name" style="color:var(--cyan);">KIE API (Images · Videos · Thumbnail)</span>
+          <span id="kieStatus" style="margin-left:auto;font-size:.68rem;color:var(--green);"></span>
+        </div>
+        <div class="key-signup-bar">
+          <span class="key-signup-label">No account?</span>
+          <a href="https://kie.ai/api-key" target="_blank" class="key-signup-link">Sign up at kie.ai →</a>
+        </div>
+        <div class="key-how">
+          <span class="key-how-num">1</span>Go to <strong>kie.ai</strong> → create a free account
+          <span class="key-how-num">2</span>Click your profile → <strong>API Key</strong>
+          <span class="key-how-num">3</span>Click <strong>Create API Key</strong> → copy the <code>kie_…</code> key
+        </div>
+        <div class="key-inp-row">
+          <input class="finput" id="kieKeyInp" type="password" placeholder="kie_...">
+          <button class="key-save-btn" style="background:var(--cyan);color:#000;" onclick="saveKey('kie')">Save</button>
+        </div>
+      </div>
+
+      <!-- ── AI33 ── -->
+      <div class="key-entry">
+        <div class="key-entry-hdr">
+          <div class="key-dot" style="background:var(--gold);"></div>
+          <span class="key-name" style="color:var(--gold);">AI33 (Voiceover)</span>
+          <span id="ai33Status" style="margin-left:auto;font-size:.68rem;color:var(--green);"></span>
+        </div>
+        <div class="key-signup-bar">
+          <span class="key-signup-label">No account?</span>
+          <a href="https://api.ai33.pro" target="_blank" class="key-signup-link">Sign up at api.ai33.pro →</a>
+        </div>
+        <div class="key-how">
+          <span class="key-how-num">1</span>Go to <strong>api.ai33.pro</strong> → register an account
+          <span class="key-how-num">2</span>Go to your <strong>Dashboard → API Keys</strong>
+          <span class="key-how-num">3</span>Generate a new key → copy the full key string
+        </div>
+        <div class="key-inp-row">
+          <input class="finput" id="ai33KeyInp" type="password" placeholder="Your AI33 API key">
+          <button class="key-save-btn" style="background:var(--gold);color:#000;" onclick="saveKey('ai33')">Save</button>
+        </div>
+      </div>
+
+      <div class="key-security-note">
+        🔒 Keys are stored locally in your browser only — never sent to any server except the API provider directly.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════
+const STATE = {
+  script: null,         // full script text
+  wordCount: 0,
+  duration: 5,
+  title: '',
+  niche: '',
+  synopsis: '',
+  voiceoverUrl: null,
+  voiceId: 'English_expressive_narrator',
+  scenes: [],           // [{scene_number, narration, visual_concept, shot_type, camera_angle, lighting, mood, color_palette, duration_seconds, image_prompt}]
+  visualStyle: 'cinematic_realistic',
+  thumbVisualStyle: 'cinematic_realistic',
+  mediaMode: 'image',   // 'image' | 'video'
+  mediaResults: {},     // scene_number → {url, type}
+  thumbImages: [],      // [{base64, mime, dataUrl, kieUrl}]
+  lastThumbPrompt: '',
+  lastThumbOverlay: '',
+  lastThumbUrl: '',
+  thumbAnalysis: null,
+};
+
+// ════════════════════════════════════════════════════════════════
+// VISUAL STYLES
+// ════════════════════════════════════════════════════════════════
+const VIS_STYLES = [
+  {id:'cinematic_realistic',n:'Cinematic',e:'🎬',s:'cinematic photography, anamorphic lens, dramatic rim lighting, Hollywood color grading, 8K photorealistic, film grain, shallow depth of field'},
+  {id:'photorealistic_4k',n:'Photo 4K',e:'📸',s:'ultra-photorealistic 4K DSLR photography, perfect sharp focus, professional studio lighting, hyperrealistic skin texture, RAW photo quality'},
+  {id:'pixar_3d',n:'Pixar 3D',e:'✨',s:'Pixar/DreamWorks quality 3D CGI animation, cinematic subsurface scattering, stylized yet photorealistic characters, dramatic camera angle, rich colors'},
+  {id:'cinematic_anime',n:'Cin. Anime',e:'⚔️',s:'cinematic anime style, Studio Ghibli meets Hollywood, dramatic lighting, expressive characters, vibrant color, theatrical composition'},
+  {id:'anime',n:'Anime',e:'🎌',s:'classic anime/manga illustration, cel shading, bold outlines, expressive anime eyes, vibrant saturated colors, clean artwork'},
+  {id:'cartoon_2d',n:'2D Cartoon',e:'🖍️',s:'flat 2D cartoon illustration, bold black outlines, bright saturated colors, clean vector art, playful expressive character design'},
+  {id:'afro_nolly',n:'Afro-Nolly',e:'🌍',s:'Pixar-quality 3D CGI, African characters with warm expressive faces, Nollywood meets Disney, vibrant West African setting, warm golden cinematic lighting'},
+  {id:'comic_book',n:'Comic',e:'💥',s:'bold comic book art, halftone dot patterns, thick black ink outlines, primary color palette, dynamic action composition, Marvel/DC style'},
+  {id:'oil_painting',n:'Oil Paint',e:'🎨',s:'classical oil painting style, rich impasto textures, old masters technique, dramatic chiaroscuro lighting, painterly brushstrokes, museum quality'},
+  {id:'low_poly',n:'Low-Poly',e:'🔷',s:'low-poly 3D art, faceted geometric surfaces, vibrant color blocks, Pixar-meets-polygon aesthetic, charming geometric characters'},
+  {id:'harry_potter',n:'H. Potter',e:'🧙',s:'dark whimsical illustration, Harry Potter cover style, teal and amber atmosphere, gothic architectural details, magical glow, wizarding world aesthetic'},
+  {id:'roblox',n:'Roblox',e:'🧱',s:'Roblox game aesthetic, blocky cube-head avatar, rectangular limbs, simple face on 3D head, bright flat textures, in-game screenshot look'},
+];
+
+// ════════════════════════════════════════════════════════════════
+// VOICES
+// ════════════════════════════════════════════════════════════════
+const VOICES = [
+  {id:'English_expressive_narrator',name:'Expressive Narrator',desc:'Rich storytelling voice'},
+  {id:'English_Trustworthy_Man',name:'Trustworthy Man',desc:'Deep, authoritative'},
+  {id:'English_CalmWoman',name:'Calm Woman',desc:'Soothing, measured'},
+  {id:'English_Confident_Man',name:'Confident Man',desc:'Bold, assertive'},
+  {id:'English_Emotional_Female',name:'Emotional Female',desc:'Warm, emotive'},
+  {id:'English_Energetic_Man',name:'Energetic Man',desc:'High-energy, dynamic'},
+  {id:'English_Documentary',name:'Documentary',desc:'Classic doc style'},
+  {id:'English_News_Anchor',name:'News Anchor',desc:'Clear, professional'},
+  {id:'English_Storyteller',name:'Storyteller',desc:'Cinematic narrative'},
+];
+
+// ════════════════════════════════════════════════════════════════
+// API KEY MANAGEMENT
+// ════════════════════════════════════════════════════════════════
+function getKey(k){return localStorage.getItem(`yte_${k}_key`);}
+function saveKey(k){
+  const inp=document.getElementById(`${k}KeyInp`);
+  const v=inp.value.trim();
+  if(!v)return;
+  localStorage.setItem(`yte_${k}_key`,v);
+  inp.value='';
+  refreshKeyUI();
+}
+function refreshKeyUI(){
+  ['ant','kie','ai33'].forEach(k=>{
+    const key=getKey(k);
+    const pill=document.getElementById(`${k}Pill`);
+    const st=document.getElementById(`${k}Status`);
+    if(key){
+      pill.className='key-pill ok';
+      if(st)st.textContent='✓ '+key.substring(0,12)+'…';
+    }else{
+      pill.className='key-pill missing';
+      if(st)st.textContent='';
+    }
+  });
+}
+function openKeys(){document.getElementById('keysModal').classList.add('open');}
+function closeKeys(){document.getElementById('keysModal').classList.remove('open');}
+document.getElementById('keysModal').addEventListener('click',e=>{if(e.target===document.getElementById('keysModal'))closeKeys();});
+
+// ════════════════════════════════════════════════════════════════
+// STAGE NAVIGATION
+// ════════════════════════════════════════════════════════════════
+const STAGES=['script','voice','scenes','media','thumbnail'];
+let unlockedStages=new Set(['script']);
+
+function goStage(id){
+  if(!unlockedStages.has(id))return;
+  STAGES.forEach(s=>{
+    document.getElementById(`stage-${s}`).classList.remove('active');
+    const tab=document.querySelector(`[data-stage="${s}"]`);
+    if(tab){tab.classList.remove('active');}
+  });
+  document.getElementById(`stage-${id}`).classList.add('active');
+  const tab=document.querySelector(`[data-stage="${id}"]`);
+  if(tab){tab.classList.add('active');}
+}
+
+function unlockStage(id){
+  unlockedStages.add(id);
+  const tab=document.querySelector(`[data-stage="${id}"]`);
+  if(tab){tab.classList.remove('locked');}
+}
+
+function markStageDone(id){
+  const tab=document.querySelector(`[data-stage="${id}"]`);
+  if(tab){tab.classList.add('done');}
+}
+
+// ════════════════════════════════════════════════════════════════
+// CLAUDE API CALL
+// ════════════════════════════════════════════════════════════════
+async function callClaude(messages, maxTokens=4096, system=''){
+  const key=getKey('ant');
+  if(!key)throw new Error('Anthropic API key required. Click the key pill to add it.');
+  const body={
+    model:'claude-sonnet-4-20250514',
+    max_tokens:maxTokens,
+    messages
+  };
+  if(system)body.system=system;
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':key,
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body:JSON.stringify(body)
+  });
+  if(!res.ok){
+    const e=await res.text();
+    throw new Error(`Claude API error ${res.status}: ${e.substring(0,200)}`);
+  }
+  const data=await res.json();
+  return(data.content&&data.content[0])?data.content[0].text:'';
+}
+
+// ════════════════════════════════════════════════════════════════
+// STAGE 1: SCRIPT GENERATION
+// ════════════════════════════════════════════════════════════════
+async function generateScript(){
+  const title=document.getElementById('vidTitle').value.trim();
+  if(!title){alert('Please enter a video title.');return;}
+  if(!getKey('ant')){alert('Add your Anthropic API key first.');return;}
+
+  const duration=parseInt(document.getElementById('vidDuration').value);
+  const niche=document.getElementById('vidNiche').value;
+  const tone=document.getElementById('vidTone').value;
+  const synopsis=document.getElementById('vidSynopsis').value.trim();
+  const targetWords=duration*150;
+
+  STATE.title=title;STATE.niche=niche;STATE.duration=duration;STATE.synopsis=synopsis;
+
+  // Calculate batches — max ~800 words per batch to stay within context
+  const wordsPerBatch=800;
+  const numBatches=Math.ceil(targetWords/wordsPerBatch);
+
+  const btn=document.getElementById('scriptBtn');
+  btn.disabled=true;
+  document.getElementById('scriptOutput').style.display='none';
+
+  // Show progress in button area
+  const genArea=document.getElementById('scriptGenArea');
+  genArea.innerHTML=`<div class="card"><div class="card-body"><div class="prog-wrap">
+    <div class="prog-ring"></div>
+    <div class="prog-msg" id="scriptProgMsg"><strong>Starting script generation…</strong></div>
+    <div class="prog-bar-wrap"><div class="prog-bar" id="scriptProgBar"></div></div>
+  </div></div></div>`;
+
+  const toneDescs={
+    cinematic_documentary:'cinematic documentary — narrated like a Netflix documentary, atmospheric, story-driven',
+    conversational:'conversational and personal — as if talking directly to one viewer, warm and relatable',
+    dramatic_thriller:'dramatic thriller — high tension, suspenseful reveals, cinematic pacing',
+    educational_engaging:'educational and engaging — clear explanations with compelling examples and storytelling',
+    motivational:'high-energy motivational — punchy, inspiring, builds to powerful emotional crescendo',
+    investigative:'investigative journalism — methodical, evidence-driven, building a case'
+  };
+
+  const sys=`You are an elite YouTube scriptwriter. You write cinematic, high-retention scripts that feel like Netflix documentaries. 
+You NEVER write scene directions, camera notes, or [SCENE:] tags — only pure spoken narration.
+You NEVER include "In this video...", "Subscribe", "Like and comment", or any meta commentary.
+Write ONLY the spoken words the narrator will say. No headings, no brackets, no markdown.
+Every sentence must either reveal new information, escalate tension, or deepen emotion. Zero filler.`;
+
+  let fullScript='';
+  let batchHistory=[];
+
+  try{
+    for(let i=0;i<numBatches;i++){
+      const pct=Math.round((i/numBatches)*100);
+      document.getElementById('scriptProgBar').style.width=pct+'%';
+
+      const isFirst=i===0;
+      const isLast=i===numBatches-1;
+      const batchLabel=isFirst?'opening hook and act 1':isLast?'conclusion and outro':`act ${i+1} of ${numBatches}`;
+
+      let userMsg;
+      if(isFirst){
+        userMsg=`Write the ${batchLabel} of a YouTube script with these details:
+
+TITLE: "${title}"
+NICHE: ${niche}
+TONE: ${toneDescs[tone]||tone}
+TARGET: ~${wordsPerBatch} words for this section (total video: ${targetWords} words, ${duration} minutes)
+${synopsis?`SYNOPSIS/KEY POINTS:\n${synopsis}`:''}
+
+START with a jaw-dropping hook — the most compelling, specific, surprising opening line possible.
+Then establish the world of the story and the central tension.
+Write exactly ~${wordsPerBatch} spoken words. End mid-thought so the next section continues naturally.
+Output ONLY the narration text. No headings, no brackets.`;
+      } else if(isLast){
+        userMsg=`Continue and COMPLETE the YouTube script. This is the FINAL section.
+
+TITLE: "${title}" | NICHE: ${niche} | TONE: ${toneDescs[tone]||tone}
+
+SCRIPT SO FAR (last 400 words):
+"...${fullScript.split(' ').slice(-400).join(' ')}"
+
+Write the conclusion (~${wordsPerBatch} words). Deliver the payoff, resolve the central tension, end on a resonant insight that lingers.
+Output ONLY the narration text. No headings, no brackets.`;
+      } else {
+        userMsg=`Continue the YouTube script. This is section ${i+1} of ${numBatches}.
+
+TITLE: "${title}" | NICHE: ${niche}
+
+SCRIPT SO FAR (last 300 words):
+"...${fullScript.split(' ').slice(-300).join(' ')}"
+
+Write the next ~${wordsPerBatch} words. Escalate tension, reveal new layers, maintain momentum.
+End mid-thought so the next section continues naturally.
+Output ONLY the narration text.`;
+      }
+
+      document.getElementById('scriptProgMsg').innerHTML=`<strong>Writing ${batchLabel}…</strong> (${i+1}/${numBatches})`;
+
+      const msgs=[{role:'user',content:userMsg}];
+      const batchText=await callClaude(msgs,1200,sys);
+      fullScript+=(fullScript?'\n\n':'')+batchText.trim();
+    }
+
+    document.getElementById('scriptProgBar').style.width='100%';
+    document.getElementById('scriptProgMsg').innerHTML='<strong>Script complete!</strong>';
+
+    // Restore button
+    genArea.innerHTML=`<button class="btn btn-gold btn-full" id="scriptBtn" onclick="generateScript()"><span>✦</span> Generate Script</button>`;
+
+    STATE.script=fullScript;
+    STATE.wordCount=fullScript.split(/\s+/).filter(w=>w.length>0).length;
+
+    // Show output
+    document.getElementById('scriptOutput').style.display='block';
+    document.getElementById('scriptPanel').textContent=fullScript;
+    document.getElementById('scriptStats').innerHTML=`
+      <div class="stat-pill stat-gold">${STATE.wordCount.toLocaleString()} words</div>
+      <div class="stat-pill stat-green">~${duration} minutes</div>
+      <div class="stat-pill stat-cyan">${Math.ceil(STATE.wordCount/wordsPerBatch)} batches</div>`;
+
+    // Auto-load thumbnail transcript
+    document.getElementById('thumbTranscript').value=fullScript.substring(0,2000);
+
+    // Save to localStorage for recovery
+    localStorage.setItem('yte_draft_script',fullScript);
+    localStorage.setItem('yte_draft_title',title);
+
+    markStageDone('script');
+    unlockStage('voice');
+
+  }catch(e){
+    genArea.innerHTML=`<button class="btn btn-gold btn-full" id="scriptBtn" onclick="generateScript()"><span>✦</span> Generate Script</button>`;
+    alert('Script generation failed: '+e.message);
+  }
+}
+
+function copyScript(){
+  if(!STATE.script)return;
+  navigator.clipboard.writeText(STATE.script).then(()=>alert('Script copied to clipboard!'));
+}
+
+function downloadScript(){
+  if(!STATE.script)return;
+  const blob=new Blob([STATE.script],{type:'text/plain'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${STATE.title||'script'}.txt`;
+  a.click();
+}
+
+function proceedToVoice(){
+  unlockStage('voice');
+  goStage('voice');
+}
+
+// ════════════════════════════════════════════════════════════════
+// STAGE 2: VOICEOVER
+// ════════════════════════════════════════════════════════════════
+function buildVoiceGrid(){
+  const grid=document.getElementById('voiceGrid');
+  grid.innerHTML=VOICES.map(v=>`
+    <div class="voice-btn ${v.id===STATE.voiceId?'on':''}" onclick="selectVoice('${v.id}',this)">
+      <div class="voice-name">${v.name}</div>
+      <div class="voice-desc">${v.desc}</div>
+    </div>`).join('');
+}
+
+function selectVoice(id,el){
+  STATE.voiceId=id;
+  document.querySelectorAll('.voice-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+}
+
+async function generateVoiceover(){
+  const ai33Key=getKey('ai33');
+  if(!ai33Key){alert('Add your AI33 API key first.');return;}
+  if(!STATE.script){alert('Generate a script first.');return;}
+
+  const customId=document.getElementById('customVoiceId').value.trim();
+  const voiceId=customId||STATE.voiceId;
+
+  const btn=document.getElementById('voiceBtn');
+  btn.disabled=true;
+  document.getElementById('voiceOutput').style.display='none';
+
+  const genArea=document.getElementById('voiceGenArea');
+  genArea.innerHTML=`<div class="card"><div class="card-body"><div class="prog-wrap">
+    <div class="prog-ring"></div>
+    <div class="prog-msg" id="voiceProgMsg"><strong>Submitting to AI33…</strong></div>
+  </div></div></div>`;
+
+  try{
+    // Clean script — remove any stray brackets
+    let cleanText=STATE.script
+      .replace(/\[[^\]]*\]/gi,'')
+      .replace(/\*\*/g,'')
+      .replace(/\n{3,}/g,'\n\n')
+      .trim();
+
+    // Submit to AI33
+    const submitRes=await fetch('https://api.ai33.pro/v1m/task/text-to-speech',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','xi-api-key':ai33Key},
+      body:JSON.stringify({
+        text:cleanText,
+        model:'speech-2.6-hd',
+        voice_setting:{voice_id:voiceId,vol:1,pitch:0,speed:1},
+        language_boost:'Auto'
+      })
+    });
+
+    const submitData=await submitRes.json();
+    if(!submitData.success||!submitData.task_id){
+      throw new Error('AI33 submit failed: '+JSON.stringify(submitData).substring(0,200));
+    }
+
+    const taskId=submitData.task_id;
+    document.getElementById('voiceProgMsg').innerHTML=`<strong>Generating voiceover…</strong> Task: ${taskId}`;
+
+    // Poll for completion
+    let audioUrl=null;
+    for(let i=0;i<120;i++){
+      await sleep(3000);
+      const pollRes=await fetch(`https://api.ai33.pro/v1m/task/text-to-speech/${taskId}`,{
+        headers:{'xi-api-key':ai33Key}
+      });
+      const pollData=await pollRes.json();
+      document.getElementById('voiceProgMsg').innerHTML=`<strong>Generating voiceover…</strong> ${i*3}s — status: ${pollData.status||'processing'}`;
+
+      // AI33 may return 'completed' or 'complete'
+      const isDone=pollData.status==='completed'||pollData.status==='complete'||pollData.success===true;
+      if(isDone){
+        audioUrl=pollData.audio_url||pollData.url||(pollData.data&&pollData.data.audio_url)||pollData.result_url;
+        if(audioUrl)break;
+      }
+      const isFailed=pollData.status==='failed'||pollData.status==='error';
+      if(isFailed)throw new Error('AI33 voiceover failed: '+(pollData.message||pollData.error||'unknown'));
+    }
+
+    if(!audioUrl)throw new Error('AI33 voiceover timed out after 6 minutes.');
+
+    STATE.voiceoverUrl=audioUrl;
+
+    genArea.innerHTML=`<button class="btn btn-gold btn-full" id="voiceBtn" onclick="generateVoiceover()"><span>🎙️</span> Generate Voiceover</button>`;
+    document.getElementById('voiceOutput').style.display='block';
+    document.getElementById('audioPlayer').src=audioUrl;
+
+    markStageDone('voice');
+    unlockStage('scenes');
+
+  }catch(e){
+    genArea.innerHTML=`<button class="btn btn-gold btn-full" id="voiceBtn" onclick="generateVoiceover()"><span>🎙️</span> Generate Voiceover</button>`;
+    alert('Voiceover failed: '+e.message);
+  }
+}
+
+function downloadVoiceover(){
+  if(!STATE.voiceoverUrl)return;
+  const a=document.createElement('a');
+  a.href=STATE.voiceoverUrl;
+  a.download=`${STATE.title||'voiceover'}.mp3`;
+  a.target='_blank';
+  a.click();
+}
+
+function proceedToScenes(){
+  unlockStage('scenes');
+  goStage('scenes');
+}
+
+// ════════════════════════════════════════════════════════════════
+// STAGE 3: SCENE BREAKDOWN
+// ════════════════════════════════════════════════════════════════
+function buildVisGrid(containerId, stateKey){
+  const grid=document.getElementById(containerId);
+  grid.innerHTML=VIS_STYLES.map(v=>`
+    <div class="vis-card ${STATE[stateKey]===v.id?'on':''}" onclick="selectVis('${containerId}','${stateKey}','${v.id}',this)">
+      <span class="vis-em">${v.e}</span>
+      <div class="vis-name">${v.n}</div>
+    </div>`).join('');
+}
+
+function selectVis(gridId,stateKey,id,el){
+  STATE[stateKey]=id;
+  document.querySelectorAll(`#${gridId} .vis-card`).forEach(c=>c.classList.remove('on'));
+  el.classList.add('on');
+}
+
+async function generateScenes(){
+  if(!STATE.script){alert('Generate a script first.');return;}
+  if(!getKey('ant')){alert('Add your Anthropic API key first.');return;}
+
+  const styleMeta=VIS_STYLES.find(v=>v.id===STATE.visualStyle)||VIS_STYLES[0];
+
+  const btn=document.getElementById('sceneBtn');
+  btn.disabled=true;
+  document.getElementById('scenesOutput').style.display='none';
+
+  const genArea=document.getElementById('sceneGenArea');
+  genArea.innerHTML=`<div class="card"><div class="card-body"><div class="prog-wrap">
+    <div class="prog-ring"></div>
+    <div class="prog-msg" id="sceneProgMsg"><strong>Claude is breaking down scenes…</strong></div>
+    <div class="prog-bar-wrap"><div class="prog-bar" id="sceneProgBar"></div></div>
+  </div></div></div>`;
+
+  const sys=`You are a world-class Hollywood film director creating a cinematic scene breakdown for a YouTube video.
+You ALWAYS respond with valid JSON only. No markdown fences, no explanations.`;
+
+  const scriptExcerpt=STATE.script.substring(0,6000);
+  const wordsLeft=STATE.script.length>6000?' [SCRIPT CONTINUES...]':'';
+  const targetScenes=Math.max(6,Math.min(24,Math.round(STATE.duration*60/8)));
+
+  const prompt=`Break this YouTube script into ${targetScenes} cinematic scenes for visual production.
+
+TITLE: "${STATE.title}"
+NICHE: ${STATE.niche}
+VISUAL STYLE: ${styleMeta.n} — ${styleMeta.s}
+
+SCRIPT:
+"""
+${scriptExcerpt}${wordsLeft}
+"""
+
+For each scene create a production-ready image generation prompt in the style of ${styleMeta.n}.
+Each image_prompt should be 80-120 words — cinematic, specific, production-ready for AI image generation.
+Include: composition, lighting, color, mood, and style suffix: "${styleMeta.s}"
+
+Respond with EXACTLY this JSON:
+{
+  "scenes": [
+    {
+      "scene_number": 1,
+      "narration_text": "exact words from script for this scene",
+      "visual_concept": "2-3 sentence cinematic description of what we see",
+      "shot_type": "e.g. WS — Wide Shot",
+      "camera_angle": "e.g. Low angle, 15 degrees below eye level",
+      "camera_movement": "e.g. Slow push-in over 6 seconds",
+      "lighting": "e.g. Single warm practical light from desk lamp, rim light separating subject",
+      "color_palette": "e.g. Deep amber #D4A574, shadow #1A0F0A",
+      "mood": "e.g. Tense, determined",
+      "duration_seconds": 6,
+      "image_prompt": "Complete production-ready prompt for AI image generation including all visual details and style suffix"
+    }
+  ]
+}`;
+
+  try{
+    document.getElementById('sceneProgBar').style.width='40%';
+    const raw=await callClaude([{role:'user',content:prompt}],4096,sys);
+    document.getElementById('sceneProgBar').style.width='80%';
+
+    const clean=raw.replace(/```json\n?/gi,'').replace(/```\n?/g,'').trim();
+    let parsed;
+    try{parsed=JSON.parse(clean);}
+    catch(e){
+      const m=clean.match(/\{[\s\S]*\}/);
+      if(m)parsed=JSON.parse(m[0]);
+      else throw new Error('Could not parse scene breakdown JSON');
+    }
+
+    STATE.scenes=parsed.scenes||[];
+    document.getElementById('sceneProgBar').style.width='100%';
+
+    genArea.innerHTML=`<button class="btn btn-gold btn-full" id="sceneBtn" onclick="generateScenes()"><span>🎬</span> Generate Scene Breakdown</button>`;
+    renderScenes();
+    document.getElementById('scenesOutput').style.display='block';
+    document.getElementById('sceneStats').innerHTML=`
+      <div class="stat-pill stat-gold">${STATE.scenes.length} scenes</div>
+      <div class="stat-pill stat-green">${styleMeta.n} style</div>
+      <div class="stat-pill stat-cyan">~${STATE.duration} min total</div>`;
+
+    markStageDone('scenes');
+    unlockStage('media');
+
+  }catch(e){
+    genArea.innerHTML=`<button class="btn btn-gold btn-full" id="sceneBtn" onclick="generateScenes()"><span>🎬</span> Generate Scene Breakdown</button>`;
+    alert('Scene breakdown failed: '+e.message);
+  }
+}
+
+function renderScenes(){
+  const grid=document.getElementById('scenesGrid');
+  grid.innerHTML=STATE.scenes.map(s=>`
+    <div class="scene-card" id="sceneCard${s.scene_number}">
+      <div class="scene-card-hdr" onclick="toggleScene(${s.scene_number})">
+        <span class="scene-num">Scene ${s.scene_number}</span>
+        <span class="scene-narration">${s.narration_text||''}</span>
+        <span class="scene-shot">${(s.shot_type||'').split('—')[0].trim()}</span>
+      </div>
+      <div class="scene-body" id="sceneBody${s.scene_number}">
+        <div class="scene-meta">
+          <div class="scene-meta-item"><div class="smi-label">Shot</div><div class="smi-value">${s.shot_type||'—'}</div></div>
+          <div class="scene-meta-item"><div class="smi-label">Angle</div><div class="smi-value">${s.camera_angle||'—'}</div></div>
+          <div class="scene-meta-item"><div class="smi-label">Lighting</div><div class="smi-value">${s.lighting||'—'}</div></div>
+          <div class="scene-meta-item"><div class="smi-label">Mood</div><div class="smi-value">${s.mood||'—'}</div></div>
+          <div class="scene-meta-item"><div class="smi-label">Color</div><div class="smi-value">${s.color_palette||'—'}</div></div>
+          <div class="scene-meta-item"><div class="smi-label">Duration</div><div class="smi-value">${s.duration_seconds||'—'}s</div></div>
+        </div>
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Visual Concept</div>
+        <p style="font-size:.78rem;color:rgba(242,240,232,0.7);line-height:1.65;margin-bottom:10px;">${s.visual_concept||''}</p>
+        <div style="font-size:.72rem;color:var(--muted);margin-bottom:6px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;">Image Prompt</div>
+        <div class="scene-prompt-box">${s.image_prompt||''}</div>
+        <div id="sceneMediaWrap${s.scene_number}"></div>
+      </div>
+    </div>`).join('');
+}
+
+function toggleScene(num){
+  const body=document.getElementById(`sceneBody${num}`);
+  body.classList.toggle('open');
+}
+
+function proceedToMedia(){
+  unlockStage('media');
+  goStage('media');
+}
+
+// ════════════════════════════════════════════════════════════════
+// STAGE 4: GENERATE MEDIA
+// ════════════════════════════════════════════════════════════════
+function setMediaMode(mode){
+  STATE.mediaMode=mode;
+  document.getElementById('modeImg').classList.toggle('on',mode==='image');
+  document.getElementById('modeVid').classList.toggle('on',mode==='video');
+  document.getElementById('modeDesc').textContent=mode==='image'
+    ?'Z-Image via KIE · 16:9'
+    :'Grok Text-to-Video 480p via KIE';
+}
+
+async function generateAllMedia(){
+  if(!STATE.scenes.length){alert('Generate scene breakdown first.');return;}
+  const kieKey=getKey('kie');
+  if(!kieKey){alert('Add your KIE API key first.');return;}
+
+  const btn=document.getElementById('mediaBtn');
+  btn.disabled=true;
+  btn.innerHTML='<span>⏳</span> Generating…';
+
+  document.getElementById('dlAllBar').style.display='flex';
+  renderMediaGrid();
+
+  let done=0;
+  const total=STATE.scenes.length;
+
+  // Process scenes sequentially to avoid rate limits
+  for(const scene of STATE.scenes){
+    updateMediaProgress(done,total);
+    try{
+      const url=STATE.mediaMode==='image'
+        ?await generateSceneImage(scene,kieKey)
+        :await generateSceneVideo(scene,kieKey);
+      STATE.mediaResults[scene.scene_number]={url,type:STATE.mediaMode};
+      updateSceneMedia(scene.scene_number,url,STATE.mediaMode);
+      done++;
+    }catch(e){
+      console.error(`Scene ${scene.scene_number} failed:`,e.message);
+      markSceneMediaFailed(scene.scene_number,e.message);
+      done++;
+    }
+  }
+
+  updateMediaProgress(done,total);
+  btn.disabled=false;
+  btn.innerHTML='<span>↺</span> Regenerate All';
+  markStageDone('media');
+  unlockStage('thumbnail');
+}
+
+async function generateSceneImage(scene,kieKey){
+  // Z-Image via KIE
+  const prompt=scene.image_prompt||scene.visual_concept||scene.narration_text;
+  const payload={model:'z-image',input:{prompt:prompt.substring(0,950),aspect_ratio:'16:9',nsfw_checker:false}};
+
+  const res=await fetch('https://api.kie.ai/api/v1/jobs/createTask',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${kieKey}`},
+    body:JSON.stringify(payload)
+  });
+  if(!res.ok){const e=await res.text();throw new Error(`Z-Image ${res.status}: ${e.substring(0,150)}`);}
+  const data=await res.json();
+  const taskId=data?.data?.taskId;
+  if(!taskId)throw new Error('No taskId from Z-Image: '+JSON.stringify(data).substring(0,150));
+  return await pollKieTask(taskId,kieKey,scene.scene_number,'image');
+}
+
+async function generateSceneVideo(scene,kieKey){
+  // Grok Text-to-Video 480p
+  const prompt=(scene.image_prompt||scene.visual_concept||scene.narration_text).substring(0,800);
+  // Doc: duration must be STRING, mode required, aspect_ratio supported
+  const durSecs = scene.duration_seconds <= 6 ? '5' : '10';
+  const payload={
+    model:'grok-imagine/text-to-video',
+    input:{
+      prompt,
+      aspect_ratio:'16:9',
+      mode:'normal',
+      duration: durSecs,
+      resolution:'480p'
+    }
+  };
+
+  const res=await fetch('https://api.kie.ai/api/v1/jobs/createTask',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${kieKey}`},
+    body:JSON.stringify(payload)
+  });
+  if(!res.ok){const e=await res.text();throw new Error(`Grok Video ${res.status}: ${e.substring(0,150)}`);}
+  const data=await res.json();
+  const taskId=data?.data?.taskId;
+  if(!taskId)throw new Error('No taskId from Grok Video: '+JSON.stringify(data).substring(0,150));
+  return await pollKieTask(taskId,kieKey,scene.scene_number,'video');
+}
+
+async function pollKieTask(taskId,kieKey,sceneNum,type,maxWait=150){
+  for(let i=0;i<maxWait;i++){
+    await sleep(2000);
+    try{
+      const res=await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${taskId}`,{
+        headers:{'Authorization':`Bearer ${kieKey}`}
+      });
+      if(res.status===404){updateSceneStatus(sceneNum,`Waiting… ${(i+1)*2}s`,'gen');continue;}
+      if(!res.ok){updateSceneStatus(sceneNum,`Retry… ${(i+1)*2}s`,'gen');continue;}
+      const data=await res.json();
+      if(data.code&&data.code!==200){updateSceneStatus(sceneNum,data.msg||'queued','gen');continue;}
+      const record=data?.data;
+      if(!record){updateSceneStatus(sceneNum,`Queued… ${(i+1)*2}s`,'gen');continue;}
+      const state=(record.state||'').toLowerCase();
+      updateSceneStatus(sceneNum,`${state}… ${(i+1)*2}s`,'gen');
+      if(state==='success'){
+        try{
+          const result=JSON.parse(record.resultJson||'{}');
+          const url=(result.resultUrls&&result.resultUrls[0])
+            ||result.imageUrl||result.videoUrl||result.url
+            ||(result.videos&&result.videos[0])
+            ||(result.images&&result.images[0]);
+          if(url){updateSceneStatus(sceneNum,'✓ Done','done');return url;}
+          updateSceneStatus(sceneNum,`Finalising… ${(i+1)*2}s`,'gen');
+          continue;
+        }catch(pe){throw new Error('Cannot parse result: '+record.resultJson);}
+      }
+      if(state==='fail')throw new Error('Task failed: '+(record.failMsg||record.failCode||'unknown'));
+    }catch(e){
+      if(e.message.includes('Task failed'))throw e;
+    }
+  }
+  throw new Error('Timed out after 300s');
+}
+
+function renderMediaGrid(){
+  const grid=document.getElementById('mediaGrid');
+  grid.innerHTML=`<div class="scenes-grid">${STATE.scenes.map(s=>`
+    <div class="scene-card" id="mediaCard${s.scene_number}">
+      <div class="scene-card-hdr">
+        <span class="scene-num">Scene ${s.scene_number}</span>
+        <span class="scene-narration">${(s.narration_text||'').substring(0,100)}</span>
+        <span class="scene-status gen" id="mediaStatus${s.scene_number}">Pending…</span>
+      </div>
+      <div id="mediaResult${s.scene_number}" style="padding:0 14px 10px;display:none;"></div>
+    </div>`).join('')}</div>`;
+}
+
+function updateSceneStatus(num,msg,cls){
+  const el=document.getElementById(`mediaStatus${num}`);
+  if(el){el.textContent=msg;el.className=`scene-status ${cls}`;}
+}
+
+function updateSceneMedia(num,url,type){
+  const wrap=document.getElementById(`mediaResult${num}`);
+  if(!wrap)return;
+  wrap.style.display='block';
+  if(type==='image'){
+    wrap.innerHTML=`<div style="border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-bottom:8px;"><img src="${url}" style="width:100%;display:block;" loading="lazy"></div>
+    <button class="btn btn-ghost btn-sm" onclick="downloadMedia('${url}','scene_${num}.png')">⬇ Download</button>`;
+  }else{
+    wrap.innerHTML=`<div style="border-radius:8px;overflow:hidden;border:1px solid var(--border);margin-bottom:8px;"><video src="${url}" controls style="width:100%;display:block;"></video></div>
+    <button class="btn btn-ghost btn-sm" onclick="downloadMedia('${url}','scene_${num}.mp4')">⬇ Download</button>`;
+  }
+}
+
+function markSceneMediaFailed(num,msg){
+  updateSceneStatus(num,'✕ Failed','fail');
+}
+
+function updateMediaProgress(done,total){
+  document.getElementById('mediaProgress').textContent=`${done} / ${total} scenes generated`;
+}
+
+function downloadMedia(url,filename){
+  const a=document.createElement('a');
+  a.href=url;a.download=filename;a.target='_blank';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+}
+
+function downloadAllMedia(){
+  Object.entries(STATE.mediaResults).forEach(([num,result])=>{
+    if(result.url){
+      const ext=result.type==='video'?'mp4':'png';
+      setTimeout(()=>downloadMedia(result.url,`scene_${num}.${ext}`),parseInt(num)*300);
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// STAGE 5: THUMBNAIL ENGINE
+// ════════════════════════════════════════════════════════════════
+async function handleThumbUpload(input){
+  const files=Array.from(input.files).slice(0,3-STATE.thumbImages.length);
+  for(const file of files){
+    if(STATE.thumbImages.length>=3)break;
+    await new Promise(resolve=>{
+      const reader=new FileReader();
+      reader.onload=e=>{
+        STATE.thumbImages.push({base64:e.target.result.split(',')[1],mime:file.type||'image/jpeg',file,dataUrl:e.target.result,kieUrl:null});
+        resolve();
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  renderThumbPreviews();
+  input.value='';
+}
+
+function renderThumbPreviews(){
+  const el=document.getElementById('thumbPreviews');
+  const labels=['@image(1)','@image(2)','@image(3)'];
+  el.innerHTML=STATE.thumbImages.map((img,i)=>`
+    <div class="img-prev-item" id="thumbPrev${i}">
+      <img src="${img.dataUrl}">
+      <div class="img-prev-label">${labels[i]}</div>
+      <span class="img-prev-remove" onclick="removeThumbImg(${i})">✕</span>
+      <span class="img-prev-status ${img.kieUrl?'done':'uploading'}" id="thumbSt${i}">${img.kieUrl?'✓ ok':'pending'}</span>
+    </div>`).join('');
+  const zone=document.getElementById('thumbUploadZone');
+  zone.style.opacity=STATE.thumbImages.length>=3?'.4':'';
+  zone.style.pointerEvents=STATE.thumbImages.length>=3?'none':'';
+}
+
+function removeThumbImg(i){STATE.thumbImages.splice(i,1);renderThumbPreviews();}
+
+async function uploadThumbImage(imgObj,idx,kieKey){
+  const stEl=document.getElementById(`thumbSt${idx}`);
+  if(stEl){stEl.textContent='↑ uploading';stEl.className='img-prev-status uploading';}
+  const res=await fetch('https://kieai.redpandaai.co/api/file-base64-upload',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${kieKey}`},
+    body:JSON.stringify({base64Data:imgObj.dataUrl,uploadPath:'images/thumbnails',fileName:`char${idx+1}_${Date.now()}.jpg`})
+  });
+  if(!res.ok){const e=await res.text();throw new Error(`Upload failed (${res.status}): ${e.substring(0,100)}`);}
+  const data=await res.json();
+  const url=data?.data?.downloadUrl||data?.data?.fileUrl||data?.data?.url;
+  if(!url)throw new Error('No URL from upload: '+JSON.stringify(data).substring(0,150));
+  imgObj.kieUrl=url;
+  if(stEl){stEl.textContent='✓ ok';stEl.className='img-prev-status done';}
+  return url;
+}
+
+function setThumbStep(n){
+  for(let i=1;i<=5;i++){
+    const el=document.getElementById(`ts${i}`);
+    if(!el)continue;
+    el.className=i<n?'stat-pill stat-green':i===n?'stat-pill stat-gold':'stat-pill';
+  }
+}
+
+async function runThumbnail(){
+  const transcript=document.getElementById('thumbTranscript').value.trim();
+  if(!transcript){alert('Please add your script or story summary.');return;}
+  if(STATE.thumbImages.length===0){alert('Please upload at least one character image.');return;}
+  const antKey=getKey('ant');const kieKey=getKey('kie');
+  if(!antKey){alert('Add your Anthropic API key first.');return;}
+  if(!kieKey){alert('Add your KIE API key first.');return;}
+
+  const btn=document.getElementById('thumbBtn');
+  btn.disabled=true;
+  btn.innerHTML='<span>⏳</span> Generating…';
+
+  document.getElementById('thumbAnalysis').style.display='none';
+  document.getElementById('thumbPromptCard').style.display='none';
+  showThumbLoading('Preparing…');
+  setThumbStep(1);
+
+  try{
+    // Step 1: Upload images
+    setThumbStep(1);
+    showThumbLoading('<strong>Step 1:</strong> Uploading character images…');
+    await Promise.all(STATE.thumbImages.map((img,i)=>img.kieUrl?Promise.resolve():uploadThumbImage(img,i,kieKey)));
+    const kieUrls=STATE.thumbImages.map(img=>img.kieUrl).filter(Boolean);
+    if(!kieUrls.length)throw new Error('No images uploaded successfully.');
+
+    // Step 2: Claude analyses story
+    setThumbStep(2);
+    showThumbLoading('<strong>Step 2:</strong> Claude is analysing your story…');
+    const analysis=await claudeThumbAnalysis(transcript,antKey,STATE.thumbImages.length);
+    STATE.thumbAnalysis=analysis;
+    STATE.lastThumbPrompt=analysis.grokPrompt;
+    STATE.lastThumbOverlay=analysis.overlayText;
+
+    renderThumbAnalysis(analysis);
+    setThumbStep(3);
+
+    // Step 3: Show prompt
+    document.getElementById('thumbPromptBody').textContent=analysis.grokPrompt;
+    document.getElementById('thumbPromptCard').style.display='block';
+
+    // Append ratio
+    const finalPrompt=analysis.grokPrompt.trimEnd()+' Output image must be horizontal 16:9 widescreen landscape format, 1280x720 pixels.';
+    STATE.lastThumbPrompt=finalPrompt;
+
+    showThumbLoading('<strong>Step 3:</strong> Sending to Grok i2i…');
+    setThumbStep(4);
+
+    // Step 4: Grok i2i
+    const payload={model:'grok-imagine/image-to-image',input:{prompt:finalPrompt,image_urls:kieUrls}};
+    const res=await fetch('https://api.kie.ai/api/v1/jobs/createTask',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${kieKey}`},
+      body:JSON.stringify(payload)
+    });
+    if(!res.ok){const e=await res.text();throw new Error(`Grok i2i ${res.status}: ${e.substring(0,200)}`);}
+    const data=await res.json();
+    const taskId=data?.data?.taskId;
+    if(!taskId)throw new Error('No taskId: '+JSON.stringify(data).substring(0,150));
+
+    const imgUrl=await pollKieTask(taskId,kieKey,'thumb','image');
+    STATE.lastThumbUrl=imgUrl;
+    setThumbStep(5);
+    renderThumbResult(imgUrl,analysis.overlayText);
+
+  }catch(e){
+    showThumbError(e.message);
+    setThumbStep(1);
+  }
+  btn.disabled=false;
+  btn.innerHTML='<span>✦</span> Generate Thumbnail';
+}
+
+async function claudeThumbAnalysis(transcript,antKey,numImages){
+  const imgRef=numImages===1
+    ?'@image(1) = sole protagonist'
+    :numImages===2
+    ?'@image(1) = protagonist (dominant), @image(2) = supporting/rival'
+    :'@image(1) = protagonist (largest), @image(2) = supporting, @image(3) = third character';
+
+  const styleMeta=VIS_STYLES.find(v=>v.id===STATE.thumbVisualStyle)||VIS_STYLES[0];
+  const storyLower=transcript.toLowerCase();
+  let autoStyle='mrbeast';
+  if(/lost|fail|wrong|mistake/.test(storyLower))autoStyle='red_block';
+  else if(/million|money|business|sales/.test(storyLower))autoStyle='hormozi';
+  else if(/nigeria|lagos|drama/.test(storyLower))autoStyle='nollywood';
+
+  const OVERLAY_STYLES={
+    hormozi:'massive Impact font ALL CAPS, WHITE (#FFFFFF) letter fill, 8px solid BLACK outer stroke, hard drop shadow 5px offset',
+    mrbeast:'massive Anton font ALL CAPS, YELLOW (#FFE000) letter fill, 9px solid BLACK outer stroke, drop shadow 6px offset, key word 1.4x larger',
+    nollywood:'Impact ALL CAPS, GREEN to YELLOW gradient fill, WHITE 6px outer stroke + BLACK 3px double outline, 3D raised effect',
+    red_block:'Impact ALL CAPS, solid RED (#FF0000) rectangle behind text, WHITE letters on red, emergency-alert energy'
+  };
+
+  const sys=`You are the world's best YouTube thumbnail strategist and Grok image-to-image prompt engineer. You think like MrBeast's thumbnail team.
+CRITICAL: Characters are referenced ONLY as @image(1), @image(2), @image(3) — NEVER describe their appearance.
+You output valid JSON only. No markdown fences.`;
+
+  const imgBlocks=STATE.thumbImages.map(img=>({type:'image',source:{type:'base64',media_type:img.mime,data:img.base64}}));
+
+  const userMsg=`Analyse this story and engineer a Grok i2i prompt for a viral YouTube thumbnail.
+
+STORY:
+"""
+${transcript.substring(0,1500)}
+"""
+
+IMAGE REFERENCES (use ONLY these tags, NEVER describe appearance):
+${imgRef}
+
+VISUAL STYLE: ${styleMeta.n} — ${styleMeta.s}
+AUTO OVERLAY STYLE: ${autoStyle}
+
+RULES:
+- Face occupies 55-70% of frame height, camera slightly below eye level
+- Theatrical exaggerated expression (jaw-dropped, triumphant, horrified, etc)
+- Bold solid background (electric blue #0066FF, deep purple, vivid red)
+- Hyper-saturated +60%, crushed blacks, strong rim light
+- Include bold graphic element (VS, arrow, starburst)
+- Overlay text: MAX 5 WORDS ALL CAPS — curiosity-gap phrase
+- Overlay style: ${OVERLAY_STYLES[autoStyle]}
+- Start grokPrompt with @image(1) direction, NEVER describe appearance
+
+Output JSON:
+{
+  "storyType": "transformation|comparison|reveal|achievement|warning|journey",
+  "compositionTemplate": "split_screen_vs|single_subject_reaction|subject_pointing|split_screen_arrow",
+  "overlayText": "MAX 5 WORDS ALL CAPS",
+  "overlayStyle": "${autoStyle}",
+  "mood": "2-3 words",
+  "grokPrompt": "200-250 word Grok i2i prompt starting with @image(1) direction, using @image(1)/@image(2)/@image(3) for ALL characters, NEVER describing appearance, including composition/background/lighting/graphic elements/overlay text with style, ending with: ${styleMeta.s}"
+}`;
+
+  const messages=[{role:'user',content:[...imgBlocks,{type:'text',text:userMsg}]}];
+  const body={model:'claude-sonnet-4-20250514',max_tokens:1500,system:sys,messages};
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-api-key':antKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body:JSON.stringify(body)
+  });
+  if(!res.ok){const e=await res.text();throw new Error('Claude error '+res.status+': '+e.substring(0,150));}
+  const data=await res.json();
+  const raw=(data.content&&data.content[0]?data.content[0].text:'').trim();
+  const clean=raw.replace(/```json\n?/gi,'').replace(/```\n?/g,'').trim();
+  let parsed;
+  try{parsed=JSON.parse(clean);}
+  catch(e){
+    const m=clean.match(/"grokPrompt"\s*:\s*"([\s\S]+?)"\s*[,}]/)?.[1]||clean.substring(0,400);
+    const ot=clean.match(/"overlayText"\s*:\s*"([^"]+)"/)?.[1]||'THIS CHANGES EVERYTHING';
+    parsed={storyType:'transformation',compositionTemplate:'single_subject_reaction',overlayText:ot,overlayStyle:autoStyle,mood:'powerful',grokPrompt:m};
+  }
+  if(parsed.grokPrompt&&!parsed.grokPrompt.includes('@image('))
+    parsed.grokPrompt=`@image(1) as the protagonist, intense theatrical expression, center frame, face occupying 65% of frame height. `+parsed.grokPrompt;
+  return parsed;
+}
+
+function renderThumbAnalysis(a){
+  document.getElementById('thumbAnalysis').style.display='block';
+  document.getElementById('thumbAnalysisGrid').innerHTML=[
+    {label:'Story Type',value:a.storyType,cls:'gold'},
+    {label:'Mood',value:a.mood,cls:'cyan'},
+    {label:'Overlay Text',value:a.overlayText,cls:'green mono'},
+    {label:'Overlay Style',value:a.overlayStyle,cls:'gold'},
+    {label:'Composition',value:a.compositionTemplate,cls:''},
+  ].map(item=>`<div class="analysis-item">
+    <div class="ai-label">${item.label}</div>
+    <div class="ai-value ${item.cls}">${item.value||'—'}</div>
+  </div>`).join('');
+}
+
+function showThumbLoading(msg){
+  document.getElementById('thumbResult').innerHTML=`<div class="prog-wrap"><div class="prog-ring"></div><div class="prog-msg">${msg}</div></div>`;
+}
+function showThumbError(msg){
+  document.getElementById('thumbResult').innerHTML=`<div class="result-ph"><span class="result-ph-icon">⚠️</span><h3>Failed</h3><p style="color:var(--red);font-size:.78rem;">${msg}</p></div>`;
+}
+function renderThumbResult(url,overlay){
+  document.getElementById('thumbResult').innerHTML=`
+    <div class="result-img-wrap"><img src="${url}" alt="Thumbnail"></div>
+    <div class="result-actions">
+      <button class="btn btn-green btn-sm" onclick="downloadThumb()">⬇ Download</button>
+      <span style="flex:1;font-size:.72rem;color:var(--muted);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">"${overlay}"</span>
+      <button class="btn btn-ghost btn-sm" onclick="runThumbnail()">↺ Regen</button>
+    </div>`;
+  // Crop to 16:9
+  const img=document.querySelector('#thumbResult img');
+  if(img)img.onload=()=>cropThumbTo169(img);
+}
+
+function cropThumbTo169(img){
+  const targetRatio=16/9;
+  const srcW=img.naturalWidth,srcH=img.naturalHeight;
+  const srcRatio=srcW/srcH;
+  let cropX=0,cropY=0,cropW=srcW,cropH=srcH;
+  if(srcRatio>targetRatio){cropH=srcH;cropW=Math.round(srcH*targetRatio);cropX=Math.round((srcW-cropW)/2);}
+  else if(srcRatio<targetRatio){cropW=srcW;cropH=Math.round(srcW/targetRatio);cropY=Math.round((srcH-cropH)/2);}
+  const canvas=document.createElement('canvas');
+  canvas.width=1280;canvas.height=720;
+  const ctx=canvas.getContext('2d');
+  ctx.drawImage(img,cropX,cropY,cropW,cropH,0,0,1280,720);
+  try{const url=canvas.toDataURL('image/jpeg',.95);STATE.lastThumbUrl=url;img.src=url;}
+  catch(e){console.warn('Canvas crop blocked by CORS');}
+}
+
+function downloadThumb(){
+  if(!STATE.lastThumbUrl)return;
+  const ext=STATE.lastThumbUrl.startsWith('data:')?'jpg':'png';
+  const a=document.createElement('a');
+  a.href=STATE.lastThumbUrl;
+  a.download=`thumbnail-${STATE.title||'video'}-${Date.now()}.${ext}`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+}
+
+let thumbPromptExpanded=false;
+function toggleThumbPrompt(){
+  thumbPromptExpanded=!thumbPromptExpanded;
+  document.getElementById('thumbPromptBody').classList.toggle('expanded',thumbPromptExpanded);
+}
+
+// ════════════════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════════════════
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+// ════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════
+function init(){
+  refreshKeyUI();
+  buildVoiceGrid();
+  buildVisGrid('sceneVisGrid','visualStyle');
+  buildVisGrid('thumbVisGrid','thumbVisualStyle');
+
+  // Drag drop for thumb upload
+  const zone=document.getElementById('thumbUploadZone');
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.style.borderColor='var(--gold)';});
+  zone.addEventListener('dragleave',()=>{zone.style.borderColor='';});
+  zone.addEventListener('drop',e=>{
+    e.preventDefault();zone.style.borderColor='';
+    const files=Array.from(e.dataTransfer.files).filter(f=>f.type.startsWith('image/'));
+    if(files.length){const fakeInput={files,value:''};handleThumbUpload(fakeInput);}
+  });
+
+  // Recover draft if available (uid-namespaced when logged in)
+  const draft=localStorage.getItem('yte_draft_script');
+  const draftTitle=localStorage.getItem('yte_draft_title');
+  if(draft&&draftTitle){
+    STATE.script=draft;STATE.title=draftTitle;
+    STATE.wordCount=draft.split(/\s+/).filter(w=>w.length>0).length;
+    document.getElementById('vidTitle').value=draftTitle;
+    document.getElementById('scriptPanel').textContent=draft;
+    document.getElementById('scriptStats').innerHTML=`
+      <div class="stat-pill stat-gold">${STATE.wordCount.toLocaleString()} words (draft recovered)</div>`;
+    document.getElementById('scriptOutput').style.display='block';
+    document.getElementById('thumbTranscript').value=draft.substring(0,2000);
+    markStageDone('script');unlockStage('voice');
+    console.log('Draft script recovered from localStorage');
+  }
+}
+
+init();
+</script>
+
+</body>
+</html>
